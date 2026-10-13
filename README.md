@@ -45,6 +45,8 @@ Local development: `pnpm install && pnpm build`, then `dsh plugin --profile web 
 
 Studio's MCP server is **off by default and only the user can turn it on**, per Roblox account. With a place open in Studio: **Assistant → … → Manage MCP Servers → Enable Studio as MCP server**. Until then the bridge starts, answers `initialize`, and reports an empty tool list. That is expected, not a bug — the `roblox-get-started` skill walks the user through it.
 
+The Assistant button is easy to miss (it's on the right side of the mezzanine bar), so if the user can't find the panel, send them to Roblox's guide, which shows it: <https://create.roblox.com/docs/assistant/guide>.
+
 ## Use
 
 ```sh

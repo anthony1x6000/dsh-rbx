@@ -65,7 +65,9 @@ If Studio is already running, don't launch a second copy and don't quit the firs
 
 ## D. Turn on the MCP setting
 
-The user does this in Studio. Don't edit Studio's settings files. It needs a place open, because the Assistant panel only appears then:
+The user does this in Studio. Don't edit Studio's settings files. It needs a place open, because the Assistant panel only appears then.
+
+The Assistant button itself is easy to miss: it sits on the **right side of the mezzanine bar** at the top of the Studio window. Roblox's own guide shows exactly where it is, with a screenshot — point the user at it if they can't find the panel: <https://create.roblox.com/docs/assistant/guide> ("Access Assistant from Studio").
 
 1. Open **Assistant** and select **… → Manage MCP Servers** (**… → Settings → MCP Servers** in some versions).
 2. Turn on **Enable Studio as MCP server**.

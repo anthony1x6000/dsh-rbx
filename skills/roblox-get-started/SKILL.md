@@ -64,7 +64,7 @@ Then give the user what's left as **one** short list, and wait for them to say i
 
 - **Sign in:** ask "Are you signed in to Roblox Studio?" If not, ask them to sign in.
 - **Open a place:** an existing place, or **Baseplate** on the start page.
-- **Turn on the MCP setting**, if it isn't on yet: **Assistant → … → Manage MCP Servers** (**… → Settings → MCP Servers** in some versions), then turn on **Enable Studio as MCP server** (`references/install.md` section D). The Assistant panel only appears with a place open.
+- **Turn on the MCP setting**, if it isn't on yet: **Assistant → … → Manage MCP Servers** (**… → Settings → MCP Servers** in some versions), then turn on **Enable Studio as MCP server** (`references/install.md` section D). The Assistant panel only appears with a place open, and its button sits on the right side of the mezzanine bar — if the user can't find it, send them to <https://create.roblox.com/docs/assistant/guide>, which shows where it is.
 
 ## 6. Register and load the tools
 
