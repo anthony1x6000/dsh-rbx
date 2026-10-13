@@ -1,8 +1,8 @@
 /**
  * Roblox Studio for DeepSeek Harness, on Linux.
  *
- * Roblox ships Studio's MCP server as a Windows/macOS binary (`StudioMCP.exe` /
- * `StudioMCP`). On Linux, Roblox Studio itself runs under Wine through
+ * Roblox does not ship its Studio MCP server for Linux. On Linux, Roblox
+ * Studio itself runs under Wine through
  * [Vinegar](https://github.com/vinegarhq/vinegar), and so does `StudioMCP.exe`.
  * This plugin wires that bridge into the harness:
  *

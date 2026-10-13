@@ -7,9 +7,8 @@
 # script finds the Studio deployment and the Wine build Vinegar installed, then
 # execs `StudioMCP.exe` with Wine so the process speaks MCP over stdio.
 #
-# It is a drop-in replacement for the macOS `/Applications/RobloxStudio.app/
-# Contents/MacOS/StudioMCP` and the Windows `%LOCALAPPDATA%\Roblox\mcp.bat`
-# launchers documented at https://create.roblox.com/docs/studio/mcp.
+# It is the Linux equivalent of the stdio launchers Roblox documents at
+# https://create.roblox.com/docs/studio/mcp.
 #
 # stdout is reserved for JSON-RPC frames. Every diagnostic goes to stderr.
 #

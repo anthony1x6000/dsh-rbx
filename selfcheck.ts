@@ -3,7 +3,7 @@
  *
  * Deliberately hermetic: it never starts Studio and never requires Vinegar.
  * The Vinegar-dependent checks are marked and skipped when no install exists,
- * so CI on macOS/Windows still exercises the packaging contract.
+ * so a machine without one still exercises the packaging contract.
  */
 
 import { execFileSync } from 'node:child_process'

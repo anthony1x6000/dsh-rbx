@@ -11,7 +11,7 @@ Both run only on the user's own computer, and only after the user approves a lis
 
 ## Why Linux needs a compatibility layer
 
-Roblox ships Roblox Studio and its MCP server (`StudioMCP.exe`) for Windows and macOS only. Vinegar is the widely used open-source bootstrapper that runs Studio on Linux under Wine. There is no Roblox-published Linux build, so `install.md` relaxes the "no package managers" rule of the macOS and Windows version of this skill to allow Vinegar — and nothing else.
+Roblox ships Roblox Studio and its MCP server (`StudioMCP.exe`) only for other platforms. Vinegar is the widely used open-source bootstrapper that runs Studio on Linux under Wine. There is no Roblox-published Linux build, so `install.md` allows Vinegar to be installed from Flathub — and nothing else.
 
 ## Installing Vinegar
 
@@ -23,7 +23,7 @@ Roblox ships Roblox Studio and its MCP server (`StudioMCP.exe`) for Windows and 
 ## Running `StudioMCP.exe` under Wine
 
 - **What runs:** the `StudioMCP.exe` that ships inside the Studio deployment Vinegar installed, under the Wine build Vinegar installed (`…/vinegar/kombucha/bin/wine`) with `WINEPREFIX=…/vinegar/prefixes/studio`.
-- **Why it is safe to run:** it is Roblox's own binary from Roblox's own deployment, the same process the macOS and Windows launchers start.
+- **Why it is safe to run:** it is Roblox's own binary from Roblox's own deployment, the same process Roblox's own launchers start.
 - **What it does:** speaks MCP over stdio to the local client, and connects to the local Studio instance over loopback WebSocket. It does not upload anything by itself; individual Studio tools (asset search, AI generation, image upload, documentation fetch) call Roblox services under the user's Studio account when the model invokes them.
 - **No credentials:** the launcher reads no tokens and stores nothing. Wine is only used because that is how Studio itself runs on Linux.
 

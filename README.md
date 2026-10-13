@@ -2,7 +2,7 @@
 
 Roblox Studio's MCP server on **Linux**, for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 
-Roblox only ships Studio's MCP server as a Windows/macOS binary (`StudioMCP.exe` / `StudioMCP`). On Linux, Roblox Studio itself runs under Wine through [Vinegar](https://github.com/vinegarhq/vinegar) — and so does `StudioMCP.exe`. This bundle supplies the missing launcher (`bin/rbx-studio-mcp`), mounts it as the harness MCP server `Roblox_Studio`, and registers the `roblox-get-started` skill that walks a user from "nothing installed" to a live Studio connection.
+Roblox ships Studio's MCP server only for other platforms, as `StudioMCP.exe`. On Linux, Roblox Studio itself runs under Wine through [Vinegar](https://github.com/vinegarhq/vinegar) — and so does `StudioMCP.exe`. This bundle supplies the missing Linux launcher (`bin/rbx-studio-mcp`), mounts it as the harness MCP server `Roblox_Studio`, and registers the `roblox-get-started` skill that walks a user from "nothing installed" to a live Studio connection.
 
 Studio's tools then appear as `mcp__Roblox_Studio__<tool>`: `list_roblox_studios`, `execute_luau`, `script_read`, `script_grep`, `search_game_tree`, `start_stop_play`, `screen_capture`, and the rest of Roblox's documented set.
 
@@ -66,7 +66,7 @@ rbx-studio-mcp detection
   stdout contract  : JSON-RPC only
 ```
 
-The launcher is not harness-specific: any MCP client can run it as a stdio server. `skills/roblox-get-started/references/connect.md` documents Claude Code, Codex/ChatGPT, and a generic `mcpServers` entry.
+The launcher is not harness-specific: any MCP client can run it as a stdio server. `skills/roblox-get-started/references/connect.md` documents the harness wiring and a generic `mcpServers` entry.
 
 ## How it works
 
@@ -81,7 +81,7 @@ dsh ──stdio JSON-RPC──▶ bin/rbx-studio-mcp ──exec──▶ wine St
 - **`index.ts`** mounts one `@deepseek-ai/dsh-mcp-client` instance against that launcher and registers the bundled skill. It is loaded through the harness's own resolution (the CLI entry point), so a linked checkout needs no `node_modules` of its own.
 - **`skills/roblox-get-started/`** is the ported setup skill: Linux install/open, connection wiring per client, troubleshooting, and security notes.
 
-Nothing in this package is a third-party MCP proxy: it starts Roblox's own `StudioMCP.exe`, the same binary the macOS and Windows launchers start.
+Nothing in this package is a third-party MCP proxy: it starts the `StudioMCP.exe` that ships inside Studio, the official MCP server binary.
 
 ## Config
 

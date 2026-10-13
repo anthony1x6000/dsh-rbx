@@ -16,7 +16,7 @@ Do as much as you can yourself. The user should only have to approve once, sign 
 ## References
 
 - `references/install.md`: commands to check for, install, and open Vinegar and Studio on Linux, and where the user turns on Studio's MCP setting.
-- `references/connect.md`: how this plugin registers and loads Studio's MCP server, and the manual configuration for other MCP clients. It has one section per client. Follow only yours.
+- `references/connect.md`: how the plugin registers and loads Studio's MCP server, how to check the wiring, and how to reuse the launcher from another MCP client.
 - `references/troubleshoot.md`: symptoms and fixes.
 
 ## Rules
