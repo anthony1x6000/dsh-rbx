@@ -1,0 +1,61 @@
+{
+  "name": "dsh-rbx",
+  "version": "0.1.0",
+  "description": "Roblox Studio's MCP server on Linux for DeepSeek Harness: a Vinegar/Wine stdio bridge plus the roblox-get-started setup skill",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "roblox",
+    "roblox-studio",
+    "luau",
+    "vinegar",
+    "wine",
+    "mcp"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "rbx-studio-mcp": "./bin/rbx-studio-mcp",
+    "rbx-studio": "./bin/rbx-studio"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/index.d.ts",
+    "bin/rbx-studio-mcp",
+    "bin/rbx-studio",
+    "skills",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "selfcheck": "node --experimental-strip-types selfcheck.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anthony1x6000/dsh-rbx.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

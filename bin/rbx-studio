@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# rbx-studio — open Roblox Studio on Linux through Vinegar.
+#
+# On Linux, Roblox Studio runs under Wine through Vinegar. Vinegar also keeps
+# Studio updated from Roblox's own CDN, so this is both the "open Studio" and
+# the "update Studio" action. Any extra arguments are forwarded to Studio.
+#
+# Usage:
+#   rbx-studio                 open Studio (installing or updating first)
+#   rbx-studio --detect        print what was detected and exit 0/1
+#   rbx-studio --help          this text
+#
+# Environment overrides:
+#   RBX_STUDIO_MCP_DATA   Vinegar data dir (same variable as rbx-studio-mcp)
+set -euo pipefail
+
+PROG=rbx-studio
+warn() { printf '%s: %s\n' "$PROG" "$*" >&2; }
+die() { warn "$*"; exit 1; }
+
+xdg_data_home() { printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}"; }
+FLATPAK_ROOT="$HOME/.var/app/org.vinegarhq.Vinegar"
+
+find_data_dir() {
+  local d
+  for d in "${RBX_STUDIO_MCP_DATA:-}" "${DSH_RBX_STUDIO_MCP_DATA:-}" \
+           "$FLATPAK_ROOT/data/vinegar" "$(xdg_data_home)/vinegar"; do
+    [ -n "$d" ] || continue
+    [ -d "$d/versions" ] && { printf '%s' "$d"; return 0; }
+  done
+  return 1
+}
+
+case "${1:-}" in
+  -h|--help)
+    sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  --detect)
+    data="$(find_data_dir || true)"
+    if command -v flatpak >/dev/null 2>&1 && flatpak info org.vinegarhq.Vinegar >/dev/null 2>&1; then
+      installer="flatpak:org.vinegarhq.Vinegar"
+    elif command -v vinegar >/dev/null 2>&1; then
+      installer="$(command -v vinegar)"
+    else
+      installer="<missing>"
+    fi
+    printf '%s detection\n' "$PROG"
+    printf '  vinegar data dir : %s\n' "${data:-<unknown>}"
+    printf '  vinegar launcher : %s\n' "$installer"
+    printf '  studio running   : %s\n' "$(pgrep -f 'RobloxStudioBeta\.exe' >/dev/null 2>&1 && echo yes || echo no)"
+    [ -n "$data" ] && exit 0 || exit 1
+    ;;
+esac
+
+if command -v flatpak >/dev/null 2>&1 && flatpak info org.vinegarhq.Vinegar >/dev/null 2>&1; then
+  exec flatpak run org.vinegarhq.Vinegar "$@"
+fi
+if command -v vinegar >/dev/null 2>&1; then
+  exec vinegar "$@"
+fi
+die "Vinegar is not installed. Install it with: flatpak install -y --user flathub org.vinegarhq.Vinegar"

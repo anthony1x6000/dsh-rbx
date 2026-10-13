@@ -1,0 +1,22 @@
+# dsh-rbx bundle layer: Roblox Studio's MCP server on Linux, through Vinegar.
+#
+# Install: dsh plugin --profile web add "github:anthony1x6000/dsh-rbx#main"
+#
+# One row. The plugin resolves its own `bin/rbx-studio-mcp` at load time and
+# mounts the harness MCP client (`@deepseek-ai/dsh-mcp-client`) against it, so
+# the launcher path is never a hardcoded string and the MCP row does not need
+# to know this package's install location. It also registers the bundled
+# `roblox-get-started` skill.
+#
+# A later layer can override any field; to configure the mount in place, add a
+# row with the same id and the config you want, for example:
+#
+#   - id: dsh-rbx
+#     config:
+#       serverName: Roblox_Studio
+#       vineDataDir: /home/me/.var/app/org.vinegarhq.Vinegar/data/vinegar
+#       mcp: true
+
+- insert:
+    - id: dsh-rbx
+      name: 'dsh-rbx'

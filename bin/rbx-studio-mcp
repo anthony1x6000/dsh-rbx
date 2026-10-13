@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# rbx-studio-mcp — Roblox Studio's official stdio MCP server on Linux.
+#
+# Roblox ships the Studio MCP server as `StudioMCP.exe` for Windows only. On
+# Linux, Roblox Studio itself runs under Wine through Vinegar
+# (https://github.com/vinegarhq/vinegar), and so does `StudioMCP.exe`. This
+# script finds the Studio deployment and the Wine build Vinegar installed, then
+# execs `StudioMCP.exe` with Wine so the process speaks MCP over stdio.
+#
+# It is a drop-in replacement for the macOS `/Applications/RobloxStudio.app/
+# Contents/MacOS/StudioMCP` and the Windows `%LOCALAPPDATA%\Roblox\mcp.bat`
+# launchers documented at https://create.roblox.com/docs/studio/mcp.
+#
+# stdout is reserved for JSON-RPC frames. Every diagnostic goes to stderr.
+#
+# Usage:
+#   rbx-studio-mcp                 run the MCP server (stdio transport)
+#   rbx-studio-mcp --detect        print what was detected and exit 0/1
+#   rbx-studio-mcp --print-command print the resolved argv, one word per line
+#   rbx-studio-mcp --help          this text
+#
+# Environment overrides (all optional; the DSH_RBX_* spellings are aliases):
+#   RBX_STUDIO_MCP_DATA      Vinegar data dir, the one holding `versions/`
+#   RBX_STUDIO_MCP_CONFIG    Vinegar config dir, the one holding `config.toml`
+#   RBX_STUDIO_MCP_WINE      wine executable to use
+#   RBX_STUDIO_MCP_PREFIX    WINEPREFIX to use
+#   RBX_STUDIO_MCP_EXE       StudioMCP.exe to run
+#   RBX_STUDIO_MCP_VERSION   Studio version dir (basename or absolute path)
+#   RBX_STUDIO_MCP_DEBUG=1   verbose diagnostics on stderr
+set -euo pipefail
+
+PROG=rbx-studio-mcp
+
+warn() { printf '%s: %s\n' "$PROG" "$*" >&2; }
+debug() { [ "${DEBUG:-0}" = "1" ] && warn "$*" || true; }
+die() { warn "$*"; exit 1; }
+
+# Read the first non-empty value among the given environment variable names.
+env_first() {
+  local name
+  for name in "$@"; do
+    local value="${!name:-}"
+    if [ -n "$value" ]; then printf '%s' "$value"; return 0; fi
+  done
+  return 1
+}
+
+DEBUG=0
+if [ -n "$(env_first RBX_STUDIO_MCP_DEBUG DSH_RBX_STUDIO_MCP_DEBUG || true)" ]; then DEBUG=1; fi
+
+# --- Vinegar locations -------------------------------------------------------
+
+# The platform's data home, honouring the XDG spec.
+xdg_data_home() { printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}"; }
+xdg_config_home() { printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}"; }
+
+FLATPAK_ROOT="$HOME/.var/app/org.vinegarhq.Vinegar"
+
+# Every Vinegar data dir worth probing, most specific first.
+candidate_data_dirs() {
+  env_first RBX_STUDIO_MCP_DATA DSH_RBX_STUDIO_MCP_DATA || true
+  printf '%s\n' "$FLATPAK_ROOT/data/vinegar"
+  printf '%s\n' "$(xdg_data_home)/vinegar"
+}
+
+# Every Vinegar config dir worth probing, most specific first.
+candidate_config_dirs() {
+  env_first RBX_STUDIO_MCP_CONFIG DSH_RBX_STUDIO_MCP_CONFIG || true
+  printf '%s\n' "$FLATPAK_ROOT/config/vinegar"
+  printf '%s\n' "$(xdg_config_home)/vinegar"
+}
+
+# A data dir is usable when it holds at least one Studio version.
+data_dir_has_versions() {
+  [ -d "$1/versions" ] || return 1
+  compgen -G "$1/versions/version-*" >/dev/null 2>&1
+}
+
+# The most recently installed version dir that ships StudioMCP.exe.
+newest_mcp_dir() {
+  local data="$1" best="" best_time=-1 dir mcp mtime
+  for dir in "$data"/versions/*; do
+    [ -d "$dir" ] || continue
+    mcp="$dir/StudioMCP.exe"
+    [ -f "$mcp" ] || continue
+    mtime="$(stat -c %Y "$mcp" 2>/dev/null || echo 0)"
+    if [ "$mtime" -gt "$best_time" ]; then best_time="$mtime"; best="$dir"; fi
+  done
+  [ -n "$best" ] || return 1
+  printf '%s' "$best"
+}
+
+# The version dir of the Studio instance that is currently running, if any.
+# Matching the live instance matters: StudioMCP.exe must be the build Studio
+# itself is running, or the WebSocket handshake is refused.
+running_studio_dir() {
+  local cmd line dir
+  for cmd in /proc/[0-9]*/cmdline; do
+    while IFS= read -r line; do
+      case "$line" in
+        */RobloxStudioBeta.exe|*\\RobloxStudioBeta.exe) ;;
+        *) continue ;;
+      esac
+      case "$line" in
+        [A-Za-z]:\\*) line="${line#??}" ;;  # drop the drive letter
+      esac
+      dir="${line//\\//}"                  # C:\a\b and /a/b both become /a/b
+      dir="${dir%/*}"
+      if [ -d "$dir" ] && [ -f "$dir/StudioMCP.exe" ]; then
+        printf '%s' "$dir"; return 0
+      fi
+    done < <(tr '\0' '\n' < "$cmd" 2>/dev/null || true)
+  done
+  return 1
+}
+
+# --- Wine --------------------------------------------------------------------
+
+# The `wineroot` value Vinegar stores in config.toml, when set.
+config_wineroot() {
+  local dirs=() dir cfg root
+  mapfile -t dirs < <(candidate_config_dirs)
+  for dir in "${dirs[@]}"; do
+    [ -n "$dir" ] || continue
+    for cfg in "$dir/config.toml" "$dir/vinegar/config.toml"; do
+      [ -f "$cfg" ] || continue
+      root="$(sed -n 's/^[[:space:]]*wineroot[[:space:]]*=[[:space:]]*"\(.*\)".*$/\1/p' "$cfg" | tail -n 1)"
+      if [ -n "${root:-}" ]; then printf '%s' "$root"; return 0; fi
+    done
+  done
+  return 1
+}
+
+resolve_wine() {
+  local wine root
+  wine="$(env_first RBX_STUDIO_MCP_WINE DSH_RBX_STUDIO_MCP_WINE || true)"
+  if [ -n "$wine" ]; then
+    [ -x "$wine" ] || die "RBX_STUDIO_MCP_WINE is set to \"$wine\", which is not executable"
+    printf '%s' "$wine"; return 0
+  fi
+  root="$(config_wineroot || true)"
+  if [ -n "$root" ] && [ -x "$root/bin/wine" ]; then
+    debug "wine from Vinegar config wineroot: $root/bin/wine"
+    printf '%s' "$root/bin/wine"; return 0
+  fi
+  # Wine build Vinegar downloads itself; the default when config.toml is absent.
+  if [ -n "${DATA_DIR:-}" ] && [ -x "$DATA_DIR/kombucha/bin/wine" ]; then
+    debug "wine from Vinegar's bundled build: $DATA_DIR/kombucha/bin/wine"
+    printf '%s' "$DATA_DIR/kombucha/bin/wine"; return 0
+  fi
+  local candidate
+  for candidate in wine wine64; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      debug "wine from PATH: $(command -v "$candidate")"
+      printf '%s' "$(command -v "$candidate")"; return 0
+    fi
+  done
+  return 1
+}
+
+# --- Detection ---------------------------------------------------------------
+
+DATA_DIR=""
+STUDIO_DIR=""
+MCP_EXE=""
+WINE_BIN=""
+WINE_PREFIX=""
+
+detect() {
+  local forced_exe forced_version data dir
+
+  forced_exe="$(env_first RBX_STUDIO_MCP_EXE DSH_RBX_STUDIO_MCP_EXE || true)"
+  forced_version="$(env_first RBX_STUDIO_MCP_VERSION DSH_RBX_STUDIO_MCP_VERSION || true)"
+
+  local explicit_data
+  explicit_data="$(env_first RBX_STUDIO_MCP_DATA DSH_RBX_STUDIO_MCP_DATA || true)"
+  if [ -n "$explicit_data" ] && ! data_dir_has_versions "$explicit_data"; then
+    die "RBX_STUDIO_MCP_DATA points at \"$explicit_data\", which has no versions/version-* deployment"
+  fi
+
+  local dirs=()
+  mapfile -t dirs < <(candidate_data_dirs)
+  for data in "${dirs[@]}"; do
+    [ -n "$data" ] || continue
+    if data_dir_has_versions "$data"; then DATA_DIR="$data"; break; fi
+  done
+
+  if [ -z "$DATA_DIR" ] && [ -z "$forced_exe" ]; then
+    die "no Vinegar installation found. Looked for versions/ under:$(printf '\n  %s' "$(candidate_data_dirs)")"$'\n'
+  fi
+  [ -n "$DATA_DIR" ] || DATA_DIR="$(dirname "$(dirname "$forced_exe")")"
+
+  # 1. An explicit StudioMCP.exe or version wins.
+  if [ -n "$forced_exe" ]; then
+    STUDIO_DIR="${forced_exe%/*}"
+  elif [ -n "$forced_version" ]; then
+    case "$forced_version" in
+      /*) STUDIO_DIR="$forced_version" ;;
+      *) STUDIO_DIR="$DATA_DIR/versions/$forced_version" ;;
+    esac
+  fi
+
+  # 2. The running Studio's build keeps the two halves of the bridge in sync.
+  if [ -z "$STUDIO_DIR" ]; then
+    if dir="$(running_studio_dir)"; then
+      if [ -f "$dir/StudioMCP.exe" ]; then
+        STUDIO_DIR="$dir"
+        debug "using the running Studio's build: $STUDIO_DIR"
+      else
+        warn "the running Studio build has no StudioMCP.exe ($dir); update Studio through Vinegar"
+      fi
+    fi
+  fi
+
+  # 3. Otherwise the newest installed build.
+  if [ -z "$STUDIO_DIR" ]; then
+    if dir="$(newest_mcp_dir "$DATA_DIR")"; then
+      STUDIO_DIR="$dir"
+    else
+      die "no StudioMCP.exe under $DATA_DIR/versions. Install or update Roblox Studio through Vinegar, then retry."
+    fi
+  fi
+
+  MCP_EXE="${forced_exe:-$STUDIO_DIR/StudioMCP.exe}"
+  [ -f "$MCP_EXE" ] || die "StudioMCP.exe not found at $MCP_EXE. Update Roblox Studio through Vinegar, then retry."
+
+  WINE_BIN="$(resolve_wine)" || die "no wine executable found. Set RBX_STUDIO_MCP_WINE, or configure Vinegar's wineroot."
+
+  WINE_PREFIX="$(env_first RBX_STUDIO_MCP_PREFIX DSH_RBX_STUDIO_MCP_PREFIX || true)"
+  if [ -z "$WINE_PREFIX" ]; then
+    WINE_PREFIX="$DATA_DIR/prefixes/studio"
+  fi
+  if [ ! -d "$WINE_PREFIX" ]; then
+    die "the Wine prefix $WINE_PREFIX does not exist. Open Roblox Studio through Vinegar once, then retry."
+  fi
+}
+
+report() {
+  local ok="ok"
+  [ -f "$MCP_EXE" ] || ok="missing"
+  cat <<EOF
+${PROG} detection
+  vinegar data dir : ${DATA_DIR:-<unknown>}
+  studio version   : ${STUDIO_DIR:-<unknown>}
+  StudioMCP.exe    : ${MCP_EXE:-<unknown>} (${ok})
+  wine             : ${WINE_BIN:-<unknown>}
+  WINEPREFIX       : ${WINE_PREFIX:-<unknown>}
+  running studio   : $(running_studio_dir 2>/dev/null || echo none)
+  stdout contract  : JSON-RPC only
+EOF
+}
+
+print_command() {
+  printf '%s\n' "$WINE_BIN" "$MCP_EXE" "$@"
+}
+
+# --- Main --------------------------------------------------------------------
+
+case "${1:-}" in
+  -h|--help)
+    sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  --detect)
+    detect
+    report
+    exit 0
+    ;;
+  --print-command)
+    shift
+    detect
+    print_command "$@"
+    exit 0
+    ;;
+esac
+
+detect
+
+# Match Vinegar's own environment closely enough that Wine behaves in the same
+# prefix without a display server: silence fixmes, disable the menu builder and
+# the components Studio does not load under Wine.
+export WINEPREFIX="$WINE_PREFIX"
+export WINEDEBUG="${WINEDEBUG:--all}"
+: "${WINEDLLOVERRIDES:=dxdiagn,winemenubuilder.exe,mscoree,mshtml=}"
+export WINEDLLOVERRIDES
+
+debug "exec: $WINE_BIN $MCP_EXE $*"
+exec "$WINE_BIN" "$MCP_EXE" "$@"

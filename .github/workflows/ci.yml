@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: git diff --exit-code -- lib
+      - run: pnpm selfcheck
+
+  install:
+    runs-on: ubuntu-latest
+    env:
+      DSH: /tmp/dsh-cli/node_modules/.bin/dsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Hermetic CLI install; the native builds below are the set pnpm gates.
+      - run: mkdir -p /tmp/dsh-cli && cd /tmp/dsh-cli && pnpm init -y > /dev/null && pnpm add @deepseek-ai/dsh --allow-build @deepseek-ai/dsh-subprocess-local --allow-build @google/genai --allow-build koffi --allow-build node-pty --allow-build protobufjs
+      - run: $DSH plugin --profile ci-rbx add .
+      - run: $DSH --profile ci-rbx --dump-config | grep dsh-rbx
+      # Tarball installs only see `files`-whitelisted content: prove the
+      # published payload mounts the layer on its own.
+      - run: pnpm pack --pack-destination /tmp/rbx-pkg
+      - run: $DSH plugin --profile ci-rbx-pack add /tmp/rbx-pkg/*.tgz
+      - run: $DSH --profile ci-rbx-pack --dump-config | grep dsh-rbx
